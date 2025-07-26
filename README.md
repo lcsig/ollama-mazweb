@@ -9,8 +9,20 @@ A modern, responsive web-based chat interface for interacting with local LLMs vi
 ## 📸 Interface Preview
 
 <div align="center">
-  <img src="chat-interface-screenshot.png" alt="Ollama-MazWeb Chat Interface" width="800">
-  <p><em>Modern, responsive chat interface with dark sidebar and real-time streaming responses</em></p>
+  <table>
+    <tr>
+      <td align="center">
+        <img src="img/chat-interface-screenshot.png" alt="Ollama-MazWeb Chat Interface" width="400">
+        <br>
+        <em>Modern chat interface with dark sidebar</em>
+      </td>
+      <td align="center">
+        <img src="img/thinking-mode.png" alt="Thinking Mode Feature" width="400">
+        <br>
+        <em>Thinking mode with step-by-step reasoning</em>
+      </td>
+    </tr>
+  </table>
 </div>
 
 ## ✨ Features
@@ -57,17 +69,34 @@ ollama serve
 
 ### 3. Install Required Models
 
-The chat system is pre-configured with two models. Install them using these commands:
+The chat system is pre-configured with multiple models. Install the recommended ones using these commands:
 
-**Dolphin Llama3 8B (Recommended - Faster):**
+**Dolphin Llama3 8B (Default - Recommended):** [📋 Model Page](https://ollama.com/library/dolphin-llama3)
 ```bash
 ollama pull dolphin-llama3:8b
 ```
 
-**Gemma 3 27B Abliterated (More Capable - Slower):**
+**Gemma 3 27B Abliterated (More Capable - Slower):** [📋 Model Page](https://ollama.com/aqualaguna/gemma-3-27b-it-abliterated-GGUF)
 ```bash
 ollama pull aqualaguna/gemma-3-27b-it-abliterated-GGUF:q2_k
 ```
+
+**JOSIEFIED Qwen3 8B (Thinking & Tools Support):** [📋 Model Page](https://ollama.com/goekdenizguelmez/JOSIEFIED-Qwen3)
+```bash
+ollama pull goekdenizguelmez/JOSIEFIED-Qwen3:8b
+```
+
+**Jan Nano Abliterated 4B (Lightweight with Thinking & Tools):** [📋 Model Page](https://ollama.com/huihui_ai/jan-nano-abliterated)
+```bash
+ollama pull huihui_ai/jan-nano-abliterated:4b
+```
+
+**Dolphin Mixtral 8x7B (Large Multi-Expert Model):** [📋 Model Page](https://ollama.com/library/dolphin-mixtral)
+```bash
+ollama pull dolphin-mixtral:8x7b
+```
+
+*Note: You can install any combination of these models. The system will automatically detect available models. Models with "Thinking" and "Tools" properties offer enhanced reasoning capabilities.*
 
 ### 4. Clone & Setup Chat System
 
@@ -107,6 +136,14 @@ Open your browser and navigate to: **http://localhost:7700**
 - Provides detailed technical explanations and code examples
 - Focuses on best practices, architecture, and clean code
 
+#### 🤔 Thinking Mode
+- **Step-by-step reasoning display** - Shows the AI's thought process before providing answers
+- **Special visual styling** - Thinking blocks are highlighted with a distinctive purple border and "🤔 Thinking..." header
+- **Real-time streaming** - Watch the AI's reasoning unfold in real-time as it types
+- **Structured format** - Uses `<thinking>` tags to separate reasoning from final answers
+- **Enhanced transparency** - Perfect for complex problems where you want to see the logic behind the solution
+- **Visual indicators** - Thinking content appears in italicized, bordered blocks for easy identification
+
 #### ✏️ Custom Prompt
 - Define your own system prompt
 - Perfect for specialized use cases or specific personas
@@ -127,33 +164,42 @@ Open your browser and navigate to: **http://localhost:7700**
    ollama pull model-name:tag
    ```
 
-2. **Add to app.py configuration:**
+2. **Add to config/models.py:**
    ```python
-   "models": [
+   MODELS = [
+       # ...existing models...
        {
            "value": "model-name:tag",
            "name": "Display Name",
-           "default": False  # Set to True to make it default
+           "default": False,  # Set to True to make it default
+           "properties": [],
+           "ollama_url": "https://ollama.com/library/model-name"
        }
    ]
    ```
 
 ### Custom System Prompts
 
-Add new prompt modes by editing the `CONFIG` in `app.py`:
+Add new prompt modes by editing the configuration files:
 
+**1. Add the mode to config/prompt_modes.py:**
 ```python
-"prompt_modes": [
+PROMPT_MODES = [
+    # ...existing modes...
     {
         "value": "your_mode",
         "name": "Your Custom Mode",
         "default": False
     }
-],
-"system_prompts": {
+]
+
+SYSTEM_PROMPTS = {
+    # ...existing prompts...
     "your_mode": "Your custom system prompt here..."
 }
 ```
+
+**2. The system will automatically load your new configurations on restart.**
 
 ## 🔧 Troubleshooting
 
@@ -191,11 +237,21 @@ Add new prompt modes by editing the `CONFIG` in `app.py`:
 
 ```
 llm/
-├── app.py              # Flask backend application
-├── requirements.txt    # Python dependencies
-├── templates/
-│   └── chat.html      # Frontend chat interface
-└── README.md          # This file
+├── app.py                      # Flask backend application
+├── requirements.txt            # Python dependencies
+├── LICENSE                     # MIT License file
+├── README.md                   # This documentation
+├── config/                     # Configuration modules
+│   ├── __init__.py            # Package initialization
+│   ├── app_config.py          # Application settings
+│   ├── models.py              # Model configurations
+│   ├── prompt_modes.py        # System prompts and modes
+│   └── utils.py               # Utility functions
+├── img/                       # Interface screenshots
+│   ├── chat-interface-screenshot.png
+│   └── thinking-mode.png
+└── templates/
+    └── chat.html              # Frontend chat interface
 ```
 
 ## 📝 API Endpoints
@@ -228,4 +284,4 @@ If you encounter issues:
 
 ---
 
-**Happy chatting! 🚀** 
+**Happy chatting! 🚀**

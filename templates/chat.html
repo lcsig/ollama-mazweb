@@ -81,6 +81,40 @@
       color: #c5c5c5;
     }
     
+    .model-info {
+      margin-top: 5px;
+      font-size: 0.75rem;
+      color: #888;
+    }
+
+    .model-properties {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 4px;
+    }
+
+    .property-tag {
+      background: #10a37f;
+      color: white;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 0.7rem;
+      font-weight: 500;
+    }
+
+    .property-tag.thinking {
+      background: #ab68ff;
+    }
+
+    .property-tag.tools {
+      background: #ff6b35;
+    }
+
+    .property-tag.vision {
+      background: #3b82f6;
+    }
+
     .control-select {
       width: 100%;
       padding: 10px 12px;
@@ -102,6 +136,38 @@
       color: white;
     }
     
+    .model-link-btn {
+      width: 38px;
+      height: 38px;
+      background: #2a2a2a;
+      border: 1px solid #4a4a4a;
+      border-radius: 6px;
+      color: #c5c5c5;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      flex-shrink: 0;
+    }
+
+    .model-link-btn:hover {
+      background: #3a3a3a;
+      color: #10a37f;
+      border-color: #10a37f;
+    }
+
+    .model-link-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .model-link-btn:disabled:hover {
+      background: #2a2a2a;
+      color: #c5c5c5;
+      border-color: #4a4a4a;
+    }
+
     .custom-prompt-section {
       display: none;
     }
@@ -352,7 +418,33 @@
       text-decoration: underline;
     }
     
-    .typing-indicator-wrapper {
+    /* Thinking mode styling */
+    .message-content thinking,
+    .message-content [data-thinking] {
+      display: block;
+      background: #f8f9fa;
+      border: 1px solid #e9ecef;
+      border-left: 4px solid #ab68ff;
+      border-radius: 6px;
+      padding: 16px;
+      margin: 12px 0;
+      font-style: italic;
+      color: #495057;
+      position: relative;
+    }
+
+    .message-content thinking::before,
+    .message-content [data-thinking]::before {
+      content: "🤔 Thinking...";
+      font-weight: 600;
+      color: #ab68ff;
+      font-style: normal;
+      display: block;
+      margin-bottom: 8px;
+      font-size: 0.9em;
+    }
+
+    .thinking-indicator-wrapper {
       background: white;
       border-bottom: 1px solid #f0f0f0;
     }
@@ -548,9 +640,20 @@
     <div class="sidebar-content">
       <div class="control-section">
         <label for="model-select">Model</label>
-        <select id="model-select" class="control-select">
-          <!-- Options will be populated dynamically -->
-        </select>
+        <div style="display: flex; gap: 8px; align-items: flex-end;">
+          <select id="model-select" class="control-select" style="flex: 1;">
+            <!-- Options will be populated dynamically -->
+          </select>
+          <button id="model-link-btn" class="model-link-btn" onclick="openModelPage()" title="View on Ollama.com">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.11 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="model-info" id="model-info">
+          <!-- Model properties will be displayed here -->
+        </div>
       </div>
       
       <div class="control-section">
@@ -643,6 +746,9 @@
         modelSelect.appendChild(option);
       });
       
+      // Show initial model properties
+      updateModelInfo();
+
       // Populate prompt mode dropdown
       const promptModeSelect = document.getElementById('prompt-mode-select');
       promptModeSelect.innerHTML = '';
@@ -663,6 +769,27 @@
       setupEventListeners();
     }
     
+    // Update model info display
+    function updateModelInfo() {
+      const modelSelect = document.getElementById('model-select');
+      const modelInfo = document.getElementById('model-info');
+
+      if (!appConfig) return;
+
+      const selectedModel = appConfig.models.find(m => m.value === modelSelect.value);
+      if (!selectedModel || !selectedModel.properties || selectedModel.properties.length === 0) {
+        modelInfo.innerHTML = '';
+        return;
+      }
+
+      const propertiesHtml = selectedModel.properties.map(prop => {
+        const className = prop.toLowerCase();
+        return `<span class="property-tag ${className}">${prop}</span>`;
+      }).join('');
+
+      modelInfo.innerHTML = `<div class="model-properties">${propertiesHtml}</div>`;
+    }
+
     function showWelcomeMessage() {
       const chatMessages = document.getElementById('chat-messages');
       chatMessages.innerHTML = `
@@ -708,6 +835,10 @@
       
       // Focus input
       messageInput.focus();
+
+      // Update model info on model change
+      const modelSelect = document.getElementById('model-select');
+      modelSelect.addEventListener('change', updateModelInfo);
     }
     
     function scrollToBottom() {
@@ -762,6 +893,62 @@
       return typingDiv;
     }
     
+    // Function to handle real-time streaming with thinking detection
+    function processStreamingContent(fullResponse, replyElement) {
+      const modelSelect = document.getElementById('model-select');
+      if (!appConfig || !modelSelect) {
+        replyElement.innerHTML = parseMarkdown(fullResponse);
+        return;
+      }
+
+      const selectedModel = appConfig.models.find(m => m.value === modelSelect.value);
+      const hasThinking = selectedModel && selectedModel.properties && selectedModel.properties.includes('Thinking');
+
+      if (!hasThinking) {
+        replyElement.innerHTML = parseMarkdown(fullResponse);
+        return;
+      }
+
+      // Check if we're currently inside a thinking block
+      const openThinkTags = (fullResponse.match(/<think>/gi) || []).length;
+      const closeThinkTags = (fullResponse.match(/<\/think>/gi) || []).length;
+      const isInThinkingBlock = openThinkTags > closeThinkTags;
+
+      // If we're in the middle of a thinking block, show it with thinking styling immediately
+      if (isInThinkingBlock) {
+        // Find the last opening <think> tag
+        const lastThinkIndex = fullResponse.lastIndexOf('<think>');
+        if (lastThinkIndex !== -1) {
+          const beforeThinking = fullResponse.substring(0, lastThinkIndex);
+          const thinkingContent = fullResponse.substring(lastThinkIndex + 7); // 7 = length of '<think>'
+
+          // Extract completed thinking blocks from the before section
+          let processedBefore = '';
+          let remainingBefore = beforeThinking;
+
+          // Extract all complete thinking blocks
+          remainingBefore = remainingBefore.replace(/<think>([\s\S]*?)<\/think>/gi, function(match, content) {
+            processedBefore += `<div data-thinking="true">${content.trim()}</div>`;
+            return ''; // Remove from remaining text
+          });
+
+          // Parse any remaining non-thinking content as markdown
+          if (remainingBefore.trim()) {
+            processedBefore += parseMarkdown(remainingBefore.trim());
+          }
+
+          // Show current thinking content in thinking style (even if incomplete)
+          const thinkingHtml = `<div data-thinking="true">${thinkingContent}</div>`;
+
+          replyElement.innerHTML = processedBefore + thinkingHtml;
+          return;
+        }
+      }
+
+      // When not in a thinking block, use the normal parsing which handles deduplication
+      replyElement.innerHTML = parseMarkdownWithThinking(fullResponse);
+    }
+
     async function clearHistory() {
       const modelSelect = document.getElementById('model-select');
       const promptModeSelect = document.getElementById('prompt-mode-select');
@@ -897,7 +1084,7 @@
           
           const chunk = decoder.decode(value, { stream: true });
           fullResponse += chunk;
-          replyElement.innerHTML = parseMarkdown(fullResponse);
+          processStreamingContent(fullResponse, replyElement);
           scrollToBottom();
         }
         
@@ -969,16 +1156,19 @@
       // Check if marked is available
       if (typeof marked === 'undefined') {
         console.warn('Marked.js not available, using fallback');
-        // Simple fallback parsing
-        return text
+        // Simple fallback parsing with thinking support
+        return processThinkingTags(text
           .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
           .replace(/\*(.*?)\*/g, '<em>$1</em>')
           .replace(/`([^`]+)`/g, '<code>$1</code>')
-          .replace(/\n/g, '<br>');
+          .replace(/\n/g, '<br>'));
       }
 
       try {
-        const html = marked.parse(text);
+        let html = marked.parse(text);
+        // Process thinking tags after markdown parsing
+        html = processThinkingTags(html);
+
         // Apply syntax highlighting to any code blocks that weren't highlighted
         if (typeof hljs !== 'undefined') {
           setTimeout(() => {
@@ -990,15 +1180,76 @@
         return html;
       } catch (error) {
         console.error('Markdown parsing error:', error);
-        // Fallback to simple parsing
-        return text
+        // Fallback to simple parsing with thinking support
+        return processThinkingTags(text
           .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
           .replace(/\*(.*?)\*/g, '<em>$1</em>')
           .replace(/`([^`]+)`/g, '<code>$1</code>')
-          .replace(/\n/g, '<br>');
+          .replace(/\n/g, '<br>'));
       }
     }
-    
+
+    // Process thinking tags and convert them to styled divs
+    function processThinkingTags(text) {
+      // Check if current model has thinking capability
+      const modelSelect = document.getElementById('model-select');
+      if (!appConfig || !modelSelect) return text;
+
+      const selectedModel = appConfig.models.find(m => m.value === modelSelect.value);
+      const hasThinking = selectedModel && selectedModel.properties && selectedModel.properties.includes('Thinking');
+
+      // Only process thinking tags if model has thinking capability
+      if (hasThinking) {
+        return text.replace(/<think>([\s\S]*?)<\/think>/gi, function(match, content) {
+          // Return the thinking content in a styled div
+          const thinkingDiv = `<div data-thinking="true">${content.trim()}</div>`;
+          return thinkingDiv;
+        });
+      }
+
+      return text;
+    }
+
+    // Parse markdown with proper thinking tag handling
+    function parseMarkdownWithThinking(text) {
+      // Check if current model has thinking capability
+      const modelSelect = document.getElementById('model-select');
+      if (!appConfig || !modelSelect) return parseMarkdown(text);
+
+      const selectedModel = appConfig.models.find(m => m.value === modelSelect.value);
+      const hasThinking = selectedModel && selectedModel.properties && selectedModel.properties.includes('Thinking');
+
+      if (hasThinking) {
+        // First, extract thinking blocks and regular content separately
+        let thinkingBlocks = [];
+        let cleanText = text;
+
+        // Extract thinking blocks (using <think> tags) - primary format
+        cleanText = cleanText.replace(/<think>([\s\S]*?)<\/think>/gi, function(match, content) {
+          thinkingBlocks.push(`<div data-thinking="true">${content.trim()}</div>`);
+          return ''; // Remove from main text
+        });
+
+        // Also handle <thinking> tags as fallback
+        cleanText = cleanText.replace(/<thinking>([\s\S]*?)<\/thinking>/gi, function(match, content) {
+          thinkingBlocks.push(`<div data-thinking="true">${content.trim()}</div>`);
+          return ''; // Remove from main text
+        });
+
+        // Parse the clean text (without thinking tags) as markdown
+        const parsedContent = parseMarkdown(cleanText.trim());
+
+        // Combine thinking blocks with parsed content
+        if (thinkingBlocks.length > 0) {
+          return thinkingBlocks.join('') + (parsedContent ? parsedContent : '');
+        } else {
+          return parsedContent;
+        }
+      }
+
+      return parseMarkdown(text);
+    }
+
     // Initialize application
     document.addEventListener('DOMContentLoaded', () => {
       const loadingIndicator = showLoading('Loading configuration...');
@@ -1023,6 +1274,26 @@
       // Start initialization
       initializeApp();
     });
+
+    // Function to open the selected model's Ollama page
+    function openModelPage() {
+      const modelSelect = document.getElementById('model-select');
+      const modelLinkBtn = document.getElementById('model-link-btn');
+
+      if (!appConfig || !modelSelect) {
+        console.warn('App config or model select not available');
+        return;
+      }
+
+      const selectedModel = appConfig.models.find(m => m.value === modelSelect.value);
+      if (!selectedModel || !selectedModel.ollama_url) {
+        console.warn('No Ollama URL found for selected model');
+        return;
+      }
+
+      // Open the model page in a new tab
+      window.open(selectedModel.ollama_url, '_blank', 'noopener,noreferrer');
+    }
   </script>
 
   <!-- Load JavaScript libraries at the end for better performance -->
@@ -1030,4 +1301,3 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 </body>
 </html>
-
